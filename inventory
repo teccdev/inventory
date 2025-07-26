@@ -40,12 +40,11 @@ while [[ $# -gt 0 ]]; do
 		MODE="size"
 		shift
 		;;
-	-r | --recursive) # count modifier
+	-r | --recursive)
 		RECURSIVE=true
 		shift
 		;;
 	-[0-9] | --[0-9]-decimals)
-		# Extract just the number from -# or --#
 		DECIMALS=${1//[!0-9]/}
 		if ! [[ $DECIMALS =~ ^[0-9]+$ ]]; then
 			echo "inventory: invalid number of decimal places"
@@ -53,15 +52,15 @@ while [[ $# -gt 0 ]]; do
 		fi
 		shift
 		;;
-	-KB | --kilobytes) # size modifier
+	-KB | --kilobytes)
 		NUMBER_FORMAT="KB"
 		shift
 		;;
-	-MB | --megabytes) # size modifier
+	-MB | --megabytes)
 		NUMBER_FORMAT="MB"
 		shift
 		;;
-	-GB | --gigabytes) # size modifier
+	-GB | --gigabytes)
 		NUMBER_FORMAT="GB"
 		shift
 		;;
@@ -123,7 +122,7 @@ elif [ $MODE = "size" ]; then
 					SIZE=$(awk -v size="$FILE_SIZE" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000000000 }')
 					UNIT="GB"
 				fi
-				# Remove trailing .00 if there are no decimal places
+
 				if [[ $DECIMALS -eq 0 ]]; then
 					SIZE=${SIZE%.*}
 				fi
