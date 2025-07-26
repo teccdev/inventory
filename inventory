@@ -1,0 +1,135 @@
+#!/bin/bash
+
+###################################
+# inventory
+# github.com
+
+MODE="none"
+RECURSIVE=false
+TARGET="."
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	-h | --help)
+		echo "Usage: inventory <mode> [options] [target]"
+		echo "Modes:"
+		echo "  -c, --count       Count files in the target directory"
+		echo "  -s, --size        Show size of the target file or directory"
+		echo
+		echo "Options:"
+		echo "  -h, --help        Show this help message"
+		echo "  -r, --recursive   Process directories recursively (for count mode)"
+		echo "  -N, --N-decimals  Number of decimal places to show (e.g., -2 for 2 decimal places)"
+		echo "  -KB, --kilobytes  Show size in kilobytes (for size mode)"
+		echo "  -MB, --megabytes  Show size in megabytes (for size mode)"
+		echo "  -GB, --gigabytes  Show size in gigabytes (for size mode)"
+		echo
+		echo "Examples:"
+		echo "  inventory -c /path/to/dir     Count files in directory"
+		echo "  inventory -s -r /path/to/dir  Show recursive size of directory"
+		echo "  inventory -s -2 file.txt      Show file size with 2 decimal places"
+		echo "  inventory -s -MB file.txt     Show file size in megabytes"
+		exit 0
+		;;
+	-c | --count)
+		MODE="count"
+		shift
+		;;
+	-s | --size)
+		MODE="size"
+		shift
+		;;
+	-r | --recursive) # count modifier
+		RECURSIVE=true
+		shift
+		;;
+	-[0-9] | --[0-9]-decimals)
+		# Extract just the number from -# or --#
+		DECIMALS=${1//[!0-9]/}
+		if ! [[ $DECIMALS =~ ^[0-9]+$ ]]; then
+			echo "inventory: invalid number of decimal places"
+			exit 1
+		fi
+		shift
+		;;
+	-KB | --kilobytes) # size modifier
+		NUMBER_FORMAT="KB"
+		shift
+		;;
+	-MB | --megabytes) # size modifier
+		NUMBER_FORMAT="MB"
+		shift
+		;;
+	-GB | --gigabytes) # size modifier
+		NUMBER_FORMAT="GB"
+		shift
+		;;
+	-*)
+		echo "inventory: $1 is not a valid option"
+		exit 1
+		;;
+	*)
+		if [ -e "$1" ]; then
+			TARGET="$1"
+		else
+			echo "inventory: $1 is not a file or directory"
+			exit 1
+		fi
+		shift
+		;;
+	esac
+done
+
+if [ $MODE = "count" ]; then
+	if [ -d "$TARGET" ]; then
+		if [ $RECURSIVE = true ]; then
+			COUNT=$(find "$TARGET" -type f | wc -l)
+		else
+			COUNT=$(find "$TARGET" -maxdepth 1 -type f | wc -l)
+		fi
+		echo "inventory: there are $COUNT files in $TARGET"
+	elif [ -f "$TARGET" ]; then
+		echo "inventory: $TARGET is not a directory"
+	fi
+elif [ $MODE = "size" ]; then
+	if [ -d "$TARGET" ]; then
+		if [ $RECURSIVE = true ]; then
+			FILE_SIZE=$(find "$TARGET" -type f -exec stat -c%s {} + | awk '{sum+=$1} END {print sum}')
+			FILES=$(find "$TARGET" -type f | wc -l)
+			echo "inventory: $TARGET is $FILE_SIZE bytes across $FILES files"
+		else
+			FILE_SIZE=$(find "$TARGET" -maxdepth 1 -type f -exec stat -c%s {} + | awk '{sum+=$1} END {print sum}')
+			FILES=$(find "$TARGET" -maxdepth 1 -type f | wc -l)
+			echo "inventory: $TARGET is $FILE_SIZE bytes across $FILES files"
+		fi
+	else
+		if [ $RECURSIVE = true ]; then
+			echo "inventory: $TARGET is not a directory"
+			exit 1
+		else
+			FILE_SIZE=$(stat -c%s "$TARGET")
+			if ((FILE_SIZE < 1000)); then
+				echo "inventory: $TARGET is $FILE_SIZE bytes"
+			else
+				SIZE=""
+				if ((FILE_SIZE < 1000000)); then
+					SIZE=$(awk -v size="$FILE_SIZE" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000 }')
+					UNIT="KB"
+				elif ((FILE_SIZE < 1000000000)); then
+					SIZE=$(awk -v size="$FILE_SIZE" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000000 }')
+					UNIT="MB"
+				else
+					SIZE=$(awk -v size="$FILE_SIZE" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000000000 }')
+					UNIT="GB"
+				fi
+				# Remove trailing .00 if there are no decimal places
+				if [[ $DECIMALS -eq 0 ]]; then
+					SIZE=${SIZE%.*}
+				fi
+				echo "inventory: $TARGET is $SIZE $UNIT"
+			fi
+		fi
+	fi
+else
+	echo "inventory: no mode specified (use --help for a list of options)"
+fi
