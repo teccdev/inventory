@@ -1,9 +1,9 @@
 # 🎒 inventory
 > Count files, view file size
 
-## Installation:
+## Installation
 
-```sh
+```
 git clone https://github.com/teccdev/inventory.git
 cd inventory
 chmod +x inventory
@@ -11,6 +11,14 @@ mv inventory ~/.local/bin  # (or wherever you keep your scripts)
 ```
 
 If inventory doesn't work after installation, make sure the directory you moved it to is in your PATH
+
+## Cleanup
+
+(optional) You can remove the git repo afterward if you've moved the script:
+```
+cd ..
+rm -rf inventory
+```
 
 ## Usage
 
