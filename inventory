@@ -8,6 +8,7 @@
 MODE="none"
 RECURSIVE=false
 TARGET="."
+NUMBER_FORMAT="auto"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -20,16 +21,16 @@ while [[ $# -gt 0 ]]; do
 		echo "Options:"
 		echo "  -h, --help        Show this help message"
 		echo "  -r, --recursive   Process directories recursively (for count mode)"
-		echo "  -N, --N-decimals  Number of decimal places to show (e.g., -2 for 2 decimal places)"
-		echo "  -KB, --kilobytes  Show size in kilobytes (for size mode)"
-		echo "  -MB, --megabytes  Show size in megabytes (for size mode)"
-		echo "  -GB, --gigabytes  Show size in gigabytes (for size mode)"
+		echo "  -#, --#-decimals  Number of decimal places to show (e.g., '-2' for 2 decimal places)"
+		echo "  -K, --kb         Show size in kilobytes (for size mode)"
+		echo "  -M, --mb         Show size in megabytes (for size mode)"
+		echo "  -G, --gb         Show size in gigabytes (for size mode)"
 		echo
 		echo "Examples:"
 		echo "  inventory -c /path/to/dir     Count files in directory"
 		echo "  inventory -s -r /path/to/dir  Show recursive size of directory"
 		echo "  inventory -s -2 file.txt      Show file size with 2 decimal places"
-		echo "  inventory -s -MB file.txt     Show file size in megabytes"
+		echo "  inventory -s -M file.txt      Show file size in megabytes"
 		exit 0
 		;;
 	-c | --count)
@@ -52,16 +53,20 @@ while [[ $# -gt 0 ]]; do
 		fi
 		shift
 		;;
-	-KB | --kilobytes)
+	-K | --kb)
 		NUMBER_FORMAT="KB"
 		shift
 		;;
-	-MB | --megabytes)
+	-M | --mb)
 		NUMBER_FORMAT="MB"
 		shift
 		;;
-	-GB | --gigabytes)
+	-G | --gb)
 		NUMBER_FORMAT="GB"
+		shift
+		;;
+	-B | --bytes)
+		NUMBER_FORMAT="bytes"
 		shift
 		;;
 	-*)
@@ -95,43 +100,52 @@ elif [ $MODE = "size" ]; then
 	# Function to format size with specified unit
 	format_size() {
 		local size=$1
-		local unit=${2:-}
+		local unit=${2:-auto}
 		local result=""
+		local decimals=${DECIMALS:-2}
 
+		# Handle bytes specifically if explicitly requested
+		if [[ "$unit" == "bytes" ]]; then
+			echo "$size bytes"
+			return
+		fi
+
+		# Handle auto-detection if no specific unit is requested
+		if [[ "$unit" == "auto" ]]; then
+			if ((size < 1000)); then
+				echo "$size bytes"
+				return
+			elif ((size < 1000000)); then
+				unit="KB"
+			elif ((size < 1000000000)); then
+				unit="MB"
+			else
+				unit="GB"
+			fi
+		fi
+
+		# Convert based on unit
 		case $unit in
 			KB)
-				result=$(awk -v size="$size" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000 }')
+				result=$(awk -v size="$size" -v dec="$decimals" 'BEGIN { printf "%0." dec "f", size/1000 }')
 				unit="KB"
 				;;
 			MB)
-				result=$(awk -v size="$size" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000000 }')
+				result=$(awk -v size="$size" -v dec="$decimals" 'BEGIN { printf "%0." dec "f", size/1000000 }')
 				unit="MB"
 				;;
 			GB)
-				result=$(awk -v size="$size" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000000000 }')
+				result=$(awk -v size="$size" -v dec="$decimals" 'BEGIN { printf "%0." dec "f", size/1000000000 }')
 				unit="GB"
 				;;
 			*)
-				# Auto-detect appropriate unit if not specified
-				if ((size < 1000)); then
-					result=$size
-					unit="bytes"
-					return
-				elif ((size < 1000000)); then
-					result=$(awk -v size="$size" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000 }')
-					unit="KB"
-				elif ((size < 1000000000)); then
-					result=$(awk -v size="$size" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000000 }')
-					unit="MB"
-				else
-					result=$(awk -v size="$size" -v dec="$DECIMALS" 'BEGIN { printf "%0." dec "f", size/1000000000 }')
-					unit="GB"
-				fi
+				echo "inventory: invalid unit format"
+				exit 1
 				;;
 		esac
 
-		# Remove decimal part if DECIMALS is 0
-		if [[ -n "$DECIMALS" && $DECIMALS -eq 0 ]]; then
+		# Clean up trailing .00 if decimals is 0
+		if [[ -n "$decimals" && $decimals -eq 0 ]]; then
 			result=${result%.*}
 		fi
 
@@ -142,21 +156,13 @@ elif [ $MODE = "size" ]; then
 		if [ $RECURSIVE = true ]; then
 			FILE_SIZE=$(find "$TARGET" -type f -exec stat -c%s {} + | awk '{sum+=$1} END {print sum}')
 			FILES=$(find "$TARGET" -type f | wc -l)
-			if [ -n "$NUMBER_FORMAT" ]; then
-				FORMATTED_SIZE=$(format_size "$FILE_SIZE" "$NUMBER_FORMAT")
-				echo "inventory: $TARGET is $FORMATTED_SIZE across $FILES files"
-			else
-				echo "inventory: $TARGET is $FILE_SIZE bytes across $FILES files"
-			fi
+			FORMATTED_SIZE=$(format_size "$FILE_SIZE" "$NUMBER_FORMAT")
+			echo "inventory: $TARGET is $FORMATTED_SIZE across $FILES files"
 		else
 			FILE_SIZE=$(find "$TARGET" -maxdepth 1 -type f -exec stat -c%s {} + | awk '{sum+=$1} END {print sum}')
 			FILES=$(find "$TARGET" -maxdepth 1 -type f | wc -l)
-			if [ -n "$NUMBER_FORMAT" ]; then
-				FORMATTED_SIZE=$(format_size "$FILE_SIZE" "$NUMBER_FORMAT")
-				echo "inventory: $TARGET is $FORMATTED_SIZE across $FILES files"
-			else
-				echo "inventory: $TARGET is $FILE_SIZE bytes across $FILES files"
-			fi
+			FORMATTED_SIZE=$(format_size "$FILE_SIZE" "$NUMBER_FORMAT")
+			echo "inventory: $TARGET is $FORMATTED_SIZE across $FILES files"
 		fi
 	else
 		if [ $RECURSIVE = true ]; then
@@ -164,17 +170,8 @@ elif [ $MODE = "size" ]; then
 			exit 1
 		else
 			FILE_SIZE=$(stat -c%s "$TARGET")
-			if [ -n "$NUMBER_FORMAT" ]; then
-				FORMATTED_SIZE=$(format_size "$FILE_SIZE" "$NUMBER_FORMAT")
-				echo "inventory: $TARGET is $FORMATTED_SIZE"
-			else
-				if ((FILE_SIZE < 1000)); then
-					echo "inventory: $TARGET is $FILE_SIZE bytes"
-				else
-					FORMATTED_SIZE=$(format_size "$FILE_SIZE")
-					echo "inventory: $TARGET is $FORMATTED_SIZE"
-				fi
-			fi
+			FORMATTED_SIZE=$(format_size "$FILE_SIZE" "$NUMBER_FORMAT")
+			echo "inventory: $TARGET is $FORMATTED_SIZE"
 		fi
 	fi
 else
