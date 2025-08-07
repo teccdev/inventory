@@ -1,9 +1,10 @@
 # 🎒 inventory
+>
 > Count files, view file size
 
 ## Installation
 
-```
+```sh
 git clone https://github.com/teccdev/inventory.git
 cd inventory
 chmod +x inventory
@@ -15,7 +16,8 @@ If inventory doesn't work after installation, make sure the directory you moved 
 ## Cleanup
 
 (optional) You can remove the git repo afterward if you've moved the script:
-```
+
+```sh
 cd ..
 rm -rf inventory
 ```
@@ -24,7 +26,7 @@ rm -rf inventory
 
 You can access this help at any time with `inventory --help`
 
-```
+```txt
 Usage: inventory <mode> [options] [target]
 Modes:
   -c, --count       Count files in the target directory
